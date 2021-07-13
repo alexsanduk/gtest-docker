@@ -3,15 +3,14 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
-name: Build and test docker image
+name: Build and publish docker image
 
 on:
   push:
-    branches: master
+    branches: 'master'
+    tags: 'v[0-9]+.[0-9]+'
   pull_request:
-    branches: master
-  release:
-    types: [published]
+    branches: 'master'
 
 jobs:
   build_image:
@@ -21,16 +20,30 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v2
 
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/gtest-docker
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+          STEPS_CONTEXT: ${{ toJson(steps) }}
+        run: |
+          echo "$GITHUB_CONTEXT"
+          echo "$STEPS_CONTEXT"
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v2
         with:
           context: .
           file: ./Dockerfile
-          push: ${{ github.event.name == 'published' }}
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/gtest-docker:latest,${{ secrets.DOCKERHUB_USERNAME }}/gtest-docker:${{ steps.meta.outputs.tags || 'default' }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
